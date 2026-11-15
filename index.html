@@ -39,6 +39,9 @@
             <p class="hero-description">Read the keeper. Pick your spot. Make your club immortal.</p>
             <div class="hero-actions">
               <button id="startTournamentButton" class="button button-primary button-large">START TOURNAMENT <span aria-hidden="true">→</span></button>
+              <button class="button button-quiet button-large" data-screen-link="multiplayerScreen">
+               MULTIPLAYER <span aria-hidden="true">⚽</span>
+              </button>
               <span class="hero-hint">16 CLUBS <i></i> ONE CHAMPION</span>
             </div>
           </div>
@@ -70,6 +73,7 @@
       </section>
 
       <section id="clubScreen" class="screen hidden" aria-labelledby="clubTitle">
+              
         <div class="screen-heading">
           <div><p class="eyebrow">01 / CLUB SELECTION</p><h1 id="clubTitle">Choose your club</h1><p>Select the badge you want to carry into the shootout.</p></div>
           <button class="button button-quiet" data-screen-link="mainMenu">← MAIN MENU</button>
@@ -84,6 +88,97 @@
             <button id="clubContinueButton" class="button button-primary button-block" disabled>CONTINUE <span aria-hidden="true">→</span></button>
           </aside>
         </div>
+      </section>
+      <!-- MULTIPLAYER LOBBY -->
+      <section id="multiplayerScreen" class="screen hidden" aria-labelledby="multiplayerTitle">
+
+        <div class="screen-heading">
+          <div>
+            <p class="eyebrow">ONLINE COMPETITION</p>
+            <h1 id="multiplayerTitle">Multiplayer Arena</h1>
+            <p>Challenge another player in a live penalty shootout.</p>
+          </div>
+          <button class="button button-quiet" data-screen-link="mainMenu">
+            ← MAIN MENU
+          </button>
+        </div>
+
+        <div class="multiplayer-layout">
+
+          <div class="multiplayer-card">
+            <span class="multiplayer-card-icon">01</span>
+            <p class="eyebrow">HOST A MATCH</p>
+            <h2>Create a Room</h2>
+            <p>Start a private match and invite a friend using your room code.</p>
+            <button id="createRoomButton" class="button button-primary button-block">
+              CREATE ROOM →
+            </button>
+          </div>
+
+          <div class="multiplayer-card">
+            <span class="multiplayer-card-icon">02</span>
+            <p class="eyebrow">JOIN A MATCH</p>
+            <h2>Join a Room</h2>
+            <p>Enter the six-character room code shared by your opponent.</p>
+
+            <input
+              id="joinRoomCode"
+              class="multiplayer-input"
+              type="text"
+              maxlength="6"
+              placeholder="ENTER ROOM CODE"
+              autocomplete="off"
+              aria-label="Six-character room code"
+            >
+
+            <button id="joinRoomButton" class="button button-primary button-block">
+              JOIN ROOM →
+            </button>
+          </div>
+
+        </div>
+
+        <div id="multiplayerMessage" class="multiplayer-message" role="status">
+          Connecting to the multiplayer arena...
+        </div>
+
+        <div id="roomLobby" class="room-lobby hidden">
+
+          <p class="eyebrow">YOUR PRIVATE MATCH</p>
+          <h2>Room Created</h2>
+
+          <div class="room-code-display">
+            <span id="roomCodeDisplay">------</span>
+          </div>
+
+          <div class="room-player-list">
+            <div class="room-player">
+              <span class="room-player-dot"></span>
+              <div>
+                <strong>HOST</strong>
+                <small id="hostPlayerStatus">Connected</small>
+              </div>
+            </div>
+
+            <div class="room-player">
+              <span class="room-player-dot waiting-dot"></span>
+              <div>
+                <strong>OPPONENT</strong>
+                <small id="guestPlayerStatus">Waiting for opponent...</small>
+              </div>
+            </div>
+          </div>
+
+          <div id="roomReadyMessage">
+            Share your room code with your opponent.
+          </div>
+
+          <button id="leaveRoomButton" class="button button-quiet">
+            BACK TO MULTIPLAYER
+          </button>
+
+        </div>
+
       </section>
 
       <section id="settingsScreen" class="screen hidden" aria-labelledby="settingsTitle">
@@ -285,6 +380,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabaseClient.js"></script>
+<script src="multiplayer.js"></script>
   <script src="gameEngine.js?v=3"></script>
   <script src="aiEngine.js"></script>
   <script src="matchEngine.js"></script>
@@ -294,5 +390,7 @@
   <script src="tournamentStorage.js"></script>
   <script src="tournamentUI.js"></script>
   <script src="app.js?v=16"></script>
+
+
 </body>
 </html>
