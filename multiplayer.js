@@ -10,6 +10,9 @@ const Multiplayer = (() => {
     let currentUserId = null;
     let roomSubscription = null;
 
+    let clubSelectionOpened = false;
+    let clubConfirmed = false;
+
     const supabase = window.afcSupabase;
 
     function getElement(id) {
@@ -50,6 +53,21 @@ const Multiplayer = (() => {
         if (error) throw error;
 
         return data;
+    }
+
+    function updateOpponentClub(room) {
+        const opponentText = getElement("multiplayerOpponentClub");
+        if (!opponentText) return;
+
+        const opponentClub = currentRole === "host"
+            ? room.guest_club
+            : room.host_club;
+
+        opponentText.classList.remove("hidden");
+
+        opponentText.textContent = opponentClub
+            ? `Opponent selected: ${opponentClub}`
+            : "Opponent is choosing a club...";
     }
 
     function renderRoom(room) {
@@ -117,8 +135,50 @@ const Multiplayer = (() => {
 
         if (readyMessage) {
             readyMessage.textContent = guestConnected
-                ? "Both players are connected! Ready for the match."
+                ? "Both players are connected! Ready for club selection."
                 : "Share your room code with your opponent.";
+        }
+
+        // Update opponent's club selection.
+        updateOpponentClub(room);
+
+        // Check whether this player has already confirmed a club.
+        const ownClub = currentRole === "host"
+            ? room.host_club
+            : room.guest_club;
+
+        if (ownClub) {
+            clubConfirmed = true;
+
+            const continueButton = getElement("clubContinueButton");
+
+            if (continueButton) {
+                continueButton.disabled = true;
+                continueButton.textContent = "CLUB CONFIRMED";
+            }
+        }
+
+        // Open club selection once both players are connected.
+        if (
+            hostConnected &&
+            guestConnected &&
+            !clubSelectionOpened
+        ) {
+            clubSelectionOpened = true;
+
+            window.AFCClubSelection?.openMultiplayer();
+
+            setStatus("Both players connected! Choose your clubs.");
+        }
+
+        // Both clubs have been confirmed.
+        if (room.host_club && room.guest_club) {
+            setStatus("Both clubs confirmed! Ready for the next phase.");
+
+            if (readyMessage) {
+                readyMessage.textContent =
+                    "Both clubs are confirmed! Waiting for the next phase.";
+            }
         }
     }
 
@@ -143,10 +203,6 @@ const Multiplayer = (() => {
 
                     if (payload.new) {
                         renderRoom(payload.new);
-
-                        if (payload.new.guest_user_id) {
-                            setStatus("Both players connected!");
-                        }
                     }
                 }
             )
@@ -156,10 +212,8 @@ const Multiplayer = (() => {
     }
 
     async function openRoom(roomId) {
-        // Subscribe first so we do not miss a room update.
         await subscribeToRoom(roomId);
 
-        // Fetch the complete room record.
         const room = await fetchRoom(roomId);
 
         renderRoom(room);
@@ -187,9 +241,12 @@ const Multiplayer = (() => {
 
             currentRole = "host";
 
+            clubSelectionOpened = false;
+            clubConfirmed = false;
+
             await openRoom(result.room_id);
 
-            setStatus("Room created successfully!");
+            setStatus("Room created successfully! Waiting for opponent...");
 
             console.log("AFC HOST ROOM:", currentRoom);
 
@@ -232,6 +289,9 @@ const Multiplayer = (() => {
 
             currentRole = "guest";
 
+            clubSelectionOpened = false;
+            clubConfirmed = false;
+
             await openRoom(result.room_id);
 
             setStatus("Joined room successfully!");
@@ -241,6 +301,71 @@ const Multiplayer = (() => {
         } catch (error) {
             console.error("AFC JOIN ROOM ERROR:", error);
             setStatus(error.message || "Could not join room.");
+        }
+    }
+
+    async function confirmClubSelection() {
+        try {
+            if (!currentRoom || !currentRole) {
+                throw new Error("You are not inside a multiplayer room.");
+            }
+
+            if (clubConfirmed) {
+                setStatus("Your club is already confirmed.");
+                return;
+            }
+
+            const selectedClub =
+                window.AFCClubSelection?.getSelectedClub();
+
+            if (!selectedClub) {
+                setStatus("Please select a club first.");
+                return;
+            }
+
+            const continueButton = getElement("clubContinueButton");
+
+            if (continueButton) {
+                continueButton.disabled = true;
+                continueButton.textContent = "SAVING...";
+            }
+
+            setStatus("Saving your club...");
+
+            const { error } = await supabase.rpc(
+                "set_multiplayer_club",
+                {
+                    p_room_id: currentRoom.id,
+                    p_club: selectedClub
+                }
+            );
+
+            if (error) throw error;
+
+            clubConfirmed = true;
+
+            if (continueButton) {
+                continueButton.textContent = "CLUB CONFIRMED";
+            }
+
+            setStatus("Club locked in! Waiting for opponent...");
+
+            // Fetch the latest room information.
+            const updatedRoom = await fetchRoom(currentRoom.id);
+
+            renderRoom(updatedRoom);
+
+        } catch (error) {
+            console.error("AFC CLUB SELECTION ERROR:", error);
+
+            const continueButton = getElement("clubContinueButton");
+
+            if (continueButton && !clubConfirmed) {
+                continueButton.disabled = false;
+                continueButton.textContent = "CONTINUE →";
+            }
+
+            setStatus(error.message || "Could not save your club.");
         }
     }
 
@@ -254,6 +379,9 @@ const Multiplayer = (() => {
         currentRole = null;
         currentUserId = null;
 
+        clubSelectionOpened = false;
+        clubConfirmed = false;
+
         const lobby = getElement("roomLobby");
 
         if (lobby) {
@@ -261,19 +389,29 @@ const Multiplayer = (() => {
             lobby.classList.add("hidden");
         }
 
+        const opponentText = getElement("multiplayerOpponentClub");
+
+        if (opponentText) {
+            opponentText.classList.add("hidden");
+            opponentText.textContent = "Opponent is choosing a club...";
+        }
+
+        window.AFCClubSelection?.closeMultiplayer();
+
         setStatus("You left the lobby on this device.");
     }
 
     return {
         createRoom,
         joinRoom,
-        leaveRoom
+        leaveRoom,
+        confirmClubSelection
     };
 })();
 
 window.Multiplayer = Multiplayer;
 
-// Connect multiplayer buttons
+// Connect multiplayer buttons.
 document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("createRoomButton")
         ?.addEventListener("click", () => Multiplayer.createRoom());
