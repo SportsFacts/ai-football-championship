@@ -88,6 +88,53 @@
             <p id="multiplayerOpponentClub" class="hidden">
     Opponent is choosing a club...
 </p>
+
+<!-- MULTIPLAYER COIN TOSS -->
+<div id="multiplayerTossPanel" class="hidden">
+
+    <div id="multiplayerTossWaiting">
+        <p class="eyebrow">NEXT UP</p>
+        <h3>Coin Toss</h3>
+        <p>Waiting for both clubs to be confirmed...</p>
+
+        <button
+            id="startMultiplayerTossButton"
+            class="button button-primary button-block hidden">
+            START COIN TOSS
+        </button>
+    </div>
+
+    <div id="multiplayerTossResult" class="hidden">
+        <p class="eyebrow">COIN TOSS RESULT</p>
+        <h2 id="multiplayerTossWinner">Toss Winner</h2>
+        <p id="multiplayerTossInstruction"></p>
+
+        <div id="multiplayerTossChoices" class="hidden">
+            <button
+                id="chooseKickFirstButton"
+                class="button button-primary button-block">
+                KICK FIRST
+            </button>
+
+            <button
+                id="chooseKeepFirstButton"
+                class="button button-secondary button-block">
+                KEEP FIRST
+            </button>
+        </div>
+
+        <p id="multiplayerTossDecisionStatus"></p>
+    </div>
+
+    <div id="multiplayerReadyPanel" class="hidden">
+        <p class="eyebrow">MATCH SETUP</p>
+        <h3>Penalty Shootout</h3>
+        <p id="multiplayerShootingOrder"></p>
+        <p id="multiplayerReadyStatus"></p>
+    </div>
+
+</div>
+
             <button id="clubContinueButton" class="button button-primary button-block" disabled>CONTINUE <span aria-hidden="true">→</span></button>
           </aside>
         </div>
