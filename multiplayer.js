@@ -70,6 +70,137 @@ const Multiplayer = (() => {
             : "Opponent is choosing a club...";
     }
 
+    // =====================================
+    // MULTIPLAYER COIN TOSS DISPLAY
+    // =====================================
+
+    function renderMatchState(room) {
+        const panel = getElement("multiplayerTossPanel");
+        if (!panel) return;
+
+        const bothClubsSelected =
+            Boolean(room.host_club && room.guest_club);
+
+        if (!bothClubsSelected) {
+            panel.classList.add("hidden");
+            return;
+        }
+
+        panel.classList.remove("hidden");
+
+        const state = room.match_state || {};
+        const toss = state.toss || {};
+        const tossCompleted = toss.completed === true;
+        const decisionMade = Boolean(toss.choice);
+
+        const waiting = getElement("multiplayerTossWaiting");
+        const result = getElement("multiplayerTossResult");
+        const choices = getElement("multiplayerTossChoices");
+        const readyPanel = getElement("multiplayerReadyPanel");
+
+        const startButton = getElement("startMultiplayerTossButton");
+        const winnerText = getElement("multiplayerTossWinner");
+        const instruction = getElement("multiplayerTossInstruction");
+        const decisionStatus = getElement("multiplayerTossDecisionStatus");
+        const shootingOrder = getElement("multiplayerShootingOrder");
+        const readyStatus = getElement("multiplayerReadyStatus");
+
+        if (!tossCompleted) {
+            waiting?.classList.remove("hidden");
+            result?.classList.add("hidden");
+            readyPanel?.classList.add("hidden");
+
+            if (startButton) {
+                startButton.classList.toggle(
+                    "hidden",
+                    currentRole !== "host"
+                );
+
+                startButton.disabled = false;
+                startButton.textContent = "START COIN TOSS";
+            }
+
+            const waitingText = waiting?.querySelector("p:last-of-type");
+
+            if (waitingText) {
+                waitingText.textContent = currentRole === "host"
+                    ? "Both clubs are confirmed. Start the coin toss!"
+                    : "Waiting for the host to start the coin toss...";
+            }
+
+            return;
+        }
+
+        waiting?.classList.add("hidden");
+        result?.classList.remove("hidden");
+
+        const winnerRole = toss.winner_role;
+        const isWinner = currentRole === winnerRole;
+
+        if (winnerText) {
+            winnerText.textContent = isWinner
+                ? "YOU WON THE COIN TOSS!"
+                : "OPPONENT WON THE COIN TOSS!";
+        }
+
+        if (!decisionMade) {
+            choices?.classList.toggle("hidden", !isWinner);
+            readyPanel?.classList.add("hidden");
+
+            if (instruction) {
+                instruction.textContent = isWinner
+                    ? "Choose what your team wants to do."
+                    : "Waiting for the toss winner to make a decision...";
+            }
+
+            if (decisionStatus) {
+                decisionStatus.textContent = "";
+            }
+
+            return;
+        }
+
+        choices?.classList.add("hidden");
+        readyPanel?.classList.remove("hidden");
+
+        const choiceText = toss.choice === "kick_first"
+            ? "The toss winner chose to KICK FIRST."
+            : "The toss winner chose to KEEP FIRST.";
+
+        if (instruction) {
+            instruction.textContent = choiceText;
+        }
+
+        if (decisionStatus) {
+            decisionStatus.textContent = "Decision confirmed!";
+        }
+
+        const hostClub = room.host_club;
+        const guestClub = room.guest_club;
+
+        const firstShooterClub = toss.first_shooter === "host"
+            ? hostClub
+            : guestClub;
+
+        const firstKeeperClub = toss.first_keeper === "host"
+            ? hostClub
+            : guestClub;
+
+        if (shootingOrder) {
+            shootingOrder.textContent =
+                `${firstShooterClub} shoots first. ${firstKeeperClub} keeps goal first.`;
+        }
+
+        if (readyStatus) {
+            readyStatus.textContent =
+                "Both players can now prepare for the penalty shootout.";
+        }
+    }
+
+    // =====================================
+    // RENDER ROOM
+    // =====================================
+
     function renderRoom(room) {
         if (!room) return;
 
@@ -101,11 +232,7 @@ const Multiplayer = (() => {
             if (hostLabel) hostLabel.textContent = "YOU (HOST)";
             if (guestLabel) guestLabel.textContent = "OPPONENT (GUEST)";
 
-            if (hostStatus) {
-                hostStatus.textContent = hostConnected
-                    ? "Connected"
-                    : "Connecting...";
-            }
+            if (hostStatus) hostStatus.textContent = "Connected";
 
             if (guestStatus) {
                 guestStatus.textContent = guestConnected
@@ -118,16 +245,10 @@ const Multiplayer = (() => {
             if (hostLabel) hostLabel.textContent = "OPPONENT (HOST)";
             if (guestLabel) guestLabel.textContent = "YOU (GUEST)";
 
-            if (hostStatus) {
-                hostStatus.textContent = hostConnected
-                    ? "Connected"
-                    : "Host unavailable";
-            }
+            if (hostStatus) hostStatus.textContent = "Connected";
 
             if (guestStatus) {
-                guestStatus.textContent = guestConnected
-                    ? "Connected"
-                    : "Connecting...";
+                guestStatus.textContent = "Connected";
             }
         }
 
@@ -139,10 +260,8 @@ const Multiplayer = (() => {
                 : "Share your room code with your opponent.";
         }
 
-        // Update opponent's club selection.
         updateOpponentClub(room);
 
-        // Check whether this player has already confirmed a club.
         const ownClub = currentRole === "host"
             ? room.host_club
             : room.guest_club;
@@ -158,29 +277,32 @@ const Multiplayer = (() => {
             }
         }
 
-        // Open club selection once both players are connected.
         if (
             hostConnected &&
             guestConnected &&
-            !clubSelectionOpened
+            !clubSelectionOpened &&
+            !room.host_club &&
+            !room.guest_club
         ) {
             clubSelectionOpened = true;
-
             window.AFCClubSelection?.openMultiplayer();
 
             setStatus("Both players connected! Choose your clubs.");
         }
 
-        // Both clubs have been confirmed.
-        if (room.host_club && room.guest_club) {
-            setStatus("Both clubs confirmed! Ready for the next phase.");
+        renderMatchState(room);
 
+        if (room.host_club && room.guest_club) {
             if (readyMessage) {
                 readyMessage.textContent =
-                    "Both clubs are confirmed! Waiting for the next phase.";
+                    "Both clubs are confirmed! Complete the coin toss.";
             }
         }
     }
+
+    // =====================================
+    // REALTIME SUBSCRIPTION
+    // =====================================
 
     async function subscribeToRoom(roomId) {
         if (roomSubscription) {
@@ -219,6 +341,10 @@ const Multiplayer = (() => {
         renderRoom(room);
     }
 
+    // =====================================
+    // CREATE ROOM
+    // =====================================
+
     async function createRoom() {
         try {
             setStatus("Connecting to Supabase...");
@@ -233,18 +359,17 @@ const Multiplayer = (() => {
 
             if (error) throw error;
 
-            const result = getFirstRow(data);
+            const roomResult = getFirstRow(data);
 
-            if (!result?.room_id) {
-                throw new Error("Room was created, but its ID was not returned.");
+            if (!roomResult?.room_id) {
+                throw new Error("Room ID was not returned.");
             }
 
             currentRole = "host";
-
             clubSelectionOpened = false;
             clubConfirmed = false;
 
-            await openRoom(result.room_id);
+            await openRoom(roomResult.room_id);
 
             setStatus("Room created successfully! Waiting for opponent...");
 
@@ -255,6 +380,10 @@ const Multiplayer = (() => {
             setStatus(error.message || "Could not create room.");
         }
     }
+
+    // =====================================
+    // JOIN ROOM
+    // =====================================
 
     async function joinRoom() {
         try {
@@ -281,18 +410,17 @@ const Multiplayer = (() => {
 
             if (error) throw error;
 
-            const result = getFirstRow(data);
+            const roomResult = getFirstRow(data);
 
-            if (!result?.room_id) {
+            if (!roomResult?.room_id) {
                 throw new Error("Could not retrieve the room ID.");
             }
 
             currentRole = "guest";
-
             clubSelectionOpened = false;
             clubConfirmed = false;
 
-            await openRoom(result.room_id);
+            await openRoom(roomResult.room_id);
 
             setStatus("Joined room successfully!");
 
@@ -304,16 +432,17 @@ const Multiplayer = (() => {
         }
     }
 
+    // =====================================
+    // CONFIRM CLUB SELECTION
+    // =====================================
+
     async function confirmClubSelection() {
         try {
             if (!currentRoom || !currentRole) {
                 throw new Error("You are not inside a multiplayer room.");
             }
 
-            if (clubConfirmed) {
-                setStatus("Your club is already confirmed.");
-                return;
-            }
+            if (clubConfirmed) return;
 
             const selectedClub =
                 window.AFCClubSelection?.getSelectedClub();
@@ -350,7 +479,6 @@ const Multiplayer = (() => {
 
             setStatus("Club locked in! Waiting for opponent...");
 
-            // Fetch the latest room information.
             const updatedRoom = await fetchRoom(currentRoom.id);
 
             renderRoom(updatedRoom);
@@ -368,6 +496,121 @@ const Multiplayer = (() => {
             setStatus(error.message || "Could not save your club.");
         }
     }
+
+    // =====================================
+    // START MULTIPLAYER COIN TOSS
+    // =====================================
+
+    async function startCoinToss() {
+        try {
+            if (!currentRoom || currentRole !== "host") {
+                throw new Error("Only the host can start the coin toss.");
+            }
+
+            if (!currentRoom.host_club || !currentRoom.guest_club) {
+                throw new Error("Both players must confirm their clubs first.");
+            }
+
+            const button = getElement("startMultiplayerTossButton");
+
+            if (button) {
+                button.disabled = true;
+                button.textContent = "TOSS IN PROGRESS...";
+            }
+
+            setStatus("Starting the coin toss...");
+
+            const { error } = await supabase.rpc(
+                "start_multiplayer_coin_toss",
+                {
+                    p_room_id: currentRoom.id
+                }
+            );
+
+            if (error) throw error;
+
+            const updatedRoom = await fetchRoom(currentRoom.id);
+
+            renderRoom(updatedRoom);
+
+            setStatus("Coin toss completed!");
+
+        } catch (error) {
+            console.error("AFC COIN TOSS ERROR:", error);
+
+            const button = getElement("startMultiplayerTossButton");
+
+            if (button) {
+                button.disabled = false;
+                button.textContent = "START COIN TOSS";
+            }
+
+            setStatus(error.message || "Could not start coin toss.");
+        }
+    }
+
+    // =====================================
+    // CHOOSE TOSS DECISION
+    // =====================================
+
+    async function chooseTossDecision(choice) {
+        try {
+            if (!currentRoom || !currentRole) {
+                throw new Error("You are not inside a multiplayer room.");
+            }
+
+            const choices = getElement("multiplayerTossChoices");
+
+            if (choices) {
+                choices.classList.add("hidden");
+            }
+
+            const status = getElement("multiplayerTossDecisionStatus");
+
+            if (status) {
+                status.textContent = "Saving your decision...";
+            }
+
+            setStatus("Confirming toss decision...");
+
+            const { error } = await supabase.rpc(
+                "choose_multiplayer_toss_decision",
+                {
+                    p_room_id: currentRoom.id,
+                    p_choice: choice
+                }
+            );
+
+            if (error) throw error;
+
+            const updatedRoom = await fetchRoom(currentRoom.id);
+
+            renderRoom(updatedRoom);
+
+            setStatus("Toss decision confirmed!");
+
+        } catch (error) {
+            console.error("AFC TOSS DECISION ERROR:", error);
+
+            const choices = getElement("multiplayerTossChoices");
+
+            if (choices) {
+                choices.classList.remove("hidden");
+            }
+
+            const status = getElement("multiplayerTossDecisionStatus");
+
+            if (status) {
+                status.textContent = error.message;
+            }
+
+            setStatus(error.message || "Could not save toss decision.");
+        }
+    }
+
+    // =====================================
+    // LEAVE ROOM
+    // =====================================
 
     async function leaveRoom() {
         if (roomSubscription) {
@@ -396,6 +639,12 @@ const Multiplayer = (() => {
             opponentText.textContent = "Opponent is choosing a club...";
         }
 
+        const tossPanel = getElement("multiplayerTossPanel");
+
+        if (tossPanel) {
+            tossPanel.classList.add("hidden");
+        }
+
         window.AFCClubSelection?.closeMultiplayer();
 
         setStatus("You left the lobby on this device.");
@@ -405,14 +654,20 @@ const Multiplayer = (() => {
         createRoom,
         joinRoom,
         leaveRoom,
-        confirmClubSelection
+        confirmClubSelection,
+        startCoinToss,
+        chooseTossDecision
     };
 })();
 
 window.Multiplayer = Multiplayer;
 
-// Connect multiplayer buttons.
+// =====================================
+// MULTIPLAYER BUTTON EVENTS
+// =====================================
+
 document.addEventListener("DOMContentLoaded", () => {
+
     document.getElementById("createRoomButton")
         ?.addEventListener("click", () => Multiplayer.createRoom());
 
@@ -421,4 +676,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.getElementById("leaveRoomButton")
         ?.addEventListener("click", () => Multiplayer.leaveRoom());
+
+    document.getElementById("startMultiplayerTossButton")
+        ?.addEventListener("click", () => Multiplayer.startCoinToss());
+
+    document.getElementById("chooseKickFirstButton")
+        ?.addEventListener("click", () =>
+            Multiplayer.chooseTossDecision("kick_first")
+        );
+
+    document.getElementById("chooseKeepFirstButton")
+        ?.addEventListener("click", () =>
+            Multiplayer.chooseTossDecision("keep_first")
+        );
 });
