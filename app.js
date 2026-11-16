@@ -32,6 +32,8 @@ let isBusy = false;
 let difficultyApplied = false;
 let selectedClub = "";
 let selectedDifficulty = 2;
+let isMultiplayerClubSelection = false;
+let offlineSelectedClubBeforeMultiplayer = "";
 let firstKicker = null;
 let penaltyController = null;
 let currentMatch = null;
@@ -1164,8 +1166,13 @@ function setupEvents() {
     });
     $("startTournamentButton").addEventListener("click", runAction(startNewTournament));
     $("clubContinueButton").addEventListener("click", () => {
-        if (selectedClub) navigateToScreen("settingsScreen");
-    });
+    if (isMultiplayerClubSelection) {
+        window.Multiplayer?.confirmClubSelection();
+        return;
+    }
+
+    if (selectedClub) navigateToScreen("settingsScreen");
+});
     document.querySelectorAll(".difficulty-card").forEach(card => {
         card.addEventListener("click", () => selectDifficulty(Number(card.dataset.difficulty)));
     });
@@ -1205,6 +1212,58 @@ function setupEvents() {
     });
 }
 
+// ==========================================
+// MULTIPLAYER CLUB SELECTION API
+// ==========================================
+
+window.AFCClubSelection = {
+    getClubs() {
+        return CLUBS.map((name, index) => ({
+            name,
+            badge: CLUB_BADGES[index]
+        }));
+    },
+
+    openMultiplayer() {
+        if (!isMultiplayerClubSelection) {
+            offlineSelectedClubBeforeMultiplayer = selectedClub;
+        }
+
+        isMultiplayerClubSelection = true;
+        selectedClub = "";
+
+        renderClubGrid();
+        setButtonDisabled("clubContinueButton", true);
+
+        navigateToScreen("clubScreen");
+    },
+
+    setSelectedClub(name) {
+        if (!CLUBS.includes(name)) return false;
+
+        selectClub(name);
+        return true;
+    },
+
+    getSelectedClub() {
+        return selectedClub;
+    },
+
+    isMultiplayerMode() {
+        return isMultiplayerClubSelection;
+    },
+
+    closeMultiplayer() {
+        if (!isMultiplayerClubSelection) return;
+
+        isMultiplayerClubSelection = false;
+        selectedClub = offlineSelectedClubBeforeMultiplayer;
+        offlineSelectedClubBeforeMultiplayer = "";
+
+        renderClubGrid();
+        setButtonDisabled("clubContinueButton", !selectedClub);
+    }
+};
 document.addEventListener("DOMContentLoaded", () => {
     renderClubGrid();
     setupEvents();
