@@ -50,6 +50,11 @@ let soundEnabled = false;
 let audioContext = null;
 let tournament = null;
 let activeTournamentMatchId = null;
+// ONLINE MULTIPLAYER MATCH STATE
+let onlineMatchMode = false;
+let onlineOpponentClub = "";
+let onlinePlayerRole = "";
+let onlineRoomId = null;
 
 const moveSelection = {
     direction: "",
@@ -238,9 +243,16 @@ function getActiveTournamentMatch() {
 }
 
 function getTournamentOpponent() {
+    if (onlineMatchMode) {
+        return onlineOpponentClub || "OPPONENT";
+    }
+
     const match = getActiveTournamentMatch();
     if (!match) return "TOURNAMENT OPPONENT";
-    return match.homeClub === selectedClub ? match.awayClub : match.homeClub;
+
+    return match.homeClub === selectedClub
+        ? match.awayClub
+        : match.homeClub;
 }
 
 function updateTournamentMatchLabels() {
@@ -611,11 +623,13 @@ function updateMatchInfo() {
     );
     updateText(
         "actionDescription",
-        currentPenaltyPrepared
-            ? playerKicking
-                ? "Set direction, power and shot type. Lock to reveal the keeper."
-                : "Choose your dive. Lock to reveal the AI striker."
-            : "The AI commits its move before you choose."
+        onlineMatchMode
+    ? "Online match: waiting for both players' synchronized controls."
+    : currentPenaltyPrepared
+        ? playerKicking
+            ? "Set direction, power and shot type. Lock to reveal the keeper."
+            : "Choose your dive. Lock to reveal the AI striker."
+        : "The AI commits its move before you choose."
     );
     setHidden("strikerOptions", !playerKicking);
 }
@@ -1263,6 +1277,139 @@ window.AFCClubSelection = {
         renderClubGrid();
         setButtonDisabled("clubContinueButton", !selectedClub);
     }
+};
+// ==========================================
+// ONLINE MULTIPLAYER MATCH INITIALIZATION
+// ==========================================
+
+window.AFCOnlineMatch = {
+
+    start(room, role) {
+
+        if (!room || !room.id || !room.match_state) {
+            console.error("Invalid multiplayer room.");
+            return false;
+        }
+
+        if (role !== "host" && role !== "guest") {
+            console.error("Invalid multiplayer player role.");
+            return false;
+        }
+
+        const state = room.match_state;
+
+        if (state.phase !== "in_progress") {
+            console.error("Multiplayer match is not ready.");
+            return false;
+        }
+
+        const localPlayer = state.players?.[role];
+        const opponentRole = role === "host" ? "guest" : "host";
+        const opponentPlayer = state.players?.[opponentRole];
+
+        if (!localPlayer?.club || !opponentPlayer?.club) {
+            console.error("Both clubs must be selected.");
+            return false;
+        }
+
+        const firstShooter = state.toss?.first_shooter;
+
+        if (firstShooter !== "host" && firstShooter !== "guest") {
+            console.error("Invalid first shooter.");
+            return false;
+        }
+
+        // Prevent duplicate initialization for the same room.
+        if (onlineRoomId === room.id && onlineMatchMode) {
+            return true;
+        }
+
+        onlineMatchMode = true;
+        onlineRoomId = room.id;
+        onlinePlayerRole = role;
+
+        // Map the local player's club to PLAYER.
+        selectedClub = localPlayer.club;
+        onlineOpponentClub = opponentPlayer.club;
+
+        // Map the shared shooting order to local labels.
+        firstKicker = firstShooter === role ? "PLAYER" : "AI";
+
+        // Reset previous match data.
+        selectedDifficulty = 2;
+        difficultyApplied = true;
+
+        penaltyController = null;
+        currentMatch = null;
+        matchStarted = false;
+        currentPenaltyPrepared = false;
+
+        currentOpponentMove = null;
+        currentPlayerMove = null;
+
+        pendingPenaltyId = 0;
+        matchPaused = false;
+        recoveryRequired = false;
+        isBusy = false;
+
+        matchEvents = [];
+
+        // Initialize the existing match presentation/controller.
+        try {
+            penaltyController =
+                window.FootballPenaltyController.createController(firstKicker);
+
+            currentMatch = penaltyController.getState();
+
+            matchStarted = true;
+
+            addMatchEvent(
+                `${selectedClub} faces ${onlineOpponentClub}.`,
+                "ONLINE",
+                "MATCH SETUP"
+            );
+
+            addMatchEvent(
+                firstKicker === "PLAYER"
+                    ? `${selectedClub} kicks first.`
+                    : `${onlineOpponentClub} kicks first.`,
+                firstKicker,
+                "SHOOTING ORDER"
+            );
+
+            resetMoveSelection();
+
+            updateText("commitStatus", "ONLINE MATCH");
+            updateText(
+                "actionDescription",
+                "Both players are connected. Online penalty controls are being prepared."
+            );
+
+            setButtonDisabled("lockMoveBtn", true);
+            setButtonDisabled("nextPenaltyBtn", true);
+
+            // Direct transition: no separate match-start screen.
+            const navigated = navigateToScreen("gameplayScreen");
+
+            if (!navigated) {
+                throw new Error("Could not open the gameplay screen.");
+            }
+
+            addLog("Online match initialized successfully.");
+
+            return true;
+
+        } catch (error) {
+
+            console.error("Online match initialization failed:", error);
+
+            onlineMatchMode = false;
+            onlineRoomId = null;
+
+            return false;
+        }
+    }
+
 };
 document.addEventListener("DOMContentLoaded", () => {
     renderClubGrid();
