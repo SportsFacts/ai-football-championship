@@ -9,7 +9,7 @@ const Multiplayer = (() => {
     let currentRole = null;
     let currentUserId = null;
     let roomSubscription = null;
-
+let onlineMatchOpened = false;
     let clubSelectionOpened = false;
     let clubConfirmed = false;
 
@@ -191,12 +191,94 @@ const Multiplayer = (() => {
                 `${firstShooterClub} shoots first. ${firstKeeperClub} keeps goal first.`;
         }
 
-        if (readyStatus) {
-            readyStatus.textContent =
-                "Both players can now prepare for the penalty shootout.";
-        }
+        
+const hostReady = state.players?.host?.ready === true;
+const guestReady = state.players?.guest?.ready === true;
+
+const hostReadyLabel = getElement("hostReadyStatus");
+const guestReadyLabel = getElement("guestReadyStatus");
+
+const readyButton = getElement("multiplayerReadyButton");
+const startMatchButton = getElement("multiplayerStartMatchButton");
+
+if (hostReadyLabel) {
+    hostReadyLabel.textContent = hostReady
+        ? "HOST: READY ✓"
+        : "HOST: NOT READY";
+}
+
+if (guestReadyLabel) {
+    guestReadyLabel.textContent = guestReady
+        ? "GUEST: READY ✓"
+        : "GUEST: NOT READY";
+}
+
+const ownReady = currentRole === "host"
+    ? hostReady
+    : guestReady;
+
+// Gameplay has started. Hide the lobby setup panel.
+if (state.phase === "in_progress") {
+    panel.classList.add("hidden");
+    return;
+}
+
+// Show READY button only until this player confirms.
+if (readyButton) {
+    readyButton.classList.toggle("hidden", ownReady);
+    readyButton.disabled = false;
+}
+
+// Only host can start, and only when both are ready.
+if (startMatchButton) {
+    startMatchButton.classList.toggle(
+        "hidden",
+        currentRole !== "host" || !hostReady || !guestReady
+    );
+
+    startMatchButton.disabled = false;
+}
+
+if (readyStatus) {
+    readyStatus.textContent = hostReady && guestReady
+        ? "Both players are READY! Host can start the match."
+        : "Waiting for both players to confirm readiness...";
+}
+
     }
 
+    // =====================================
+// AUTOMATIC ONLINE GAMEPLAY TRANSITION
+// =====================================
+
+function openOnlineMatchIfReady(room) {
+
+    if (room?.match_state?.phase !== "in_progress") {
+        return false;
+    }
+
+    // Prevent duplicate initialization from repeated Realtime updates.
+    if (onlineMatchOpened) {
+        return true;
+    }
+
+    if (!window.AFCOnlineMatch?.start) {
+        console.error("AFCOnlineMatch API is not available.");
+        setStatus("Could not initialize gameplay. Please refresh.");
+        return false;
+    }
+
+    const success = window.AFCOnlineMatch.start(room, currentRole);
+
+    if (success) {
+        onlineMatchOpened = true;
+        console.log("AFC: Both players can now enter gameplay.");
+        return true;
+    }
+
+    setStatus("Could not initialize the online match. Check the console.");
+    return false;
+}
     // =====================================
     // RENDER ROOM
     // =====================================
@@ -261,6 +343,10 @@ const Multiplayer = (() => {
         }
 
         updateOpponentClub(room);
+        // Automatically enter gameplay when the host starts the match.
+if (room.match_state?.phase === "in_progress") {
+    openOnlineMatchIfReady(room);
+}
 
         const ownClub = currentRole === "host"
             ? room.host_club
@@ -366,6 +452,7 @@ const Multiplayer = (() => {
             }
 
             currentRole = "host";
+            onlineMatchOpened = false;
             clubSelectionOpened = false;
             clubConfirmed = false;
 
@@ -417,6 +504,7 @@ const Multiplayer = (() => {
             }
 
             currentRole = "guest";
+            onlineMatchOpened = false;
             clubSelectionOpened = false;
             clubConfirmed = false;
 
@@ -608,9 +696,107 @@ const Multiplayer = (() => {
         }
     }
 
+// =====================================
+// PLAYER READY CONFIRMATION
+// =====================================
+
+async function confirmReady() {
+    try {
+        if (!currentRoom || !currentRole) {
+            throw new Error("You are not inside a multiplayer room.");
+        }
+
+        const button = getElement("multiplayerReadyButton");
+
+        if (button) {
+            button.disabled = true;
+            button.textContent = "SAVING...";
+        }
+
+        setStatus("Confirming your readiness...");
+
+        const { error } = await supabase.rpc(
+            "set_multiplayer_ready",
+            {
+                p_room_id: currentRoom.id
+            }
+        );
+
+        if (error) throw error;
+
+        const updatedRoom = await fetchRoom(currentRoom.id);
+
+        renderRoom(updatedRoom);
+
+        setStatus("You are READY!");
+
+    } catch (error) {
+        console.error("AFC READY ERROR:", error);
+
+        const button = getElement("multiplayerReadyButton");
+
+        if (button) {
+            button.disabled = false;
+            button.textContent = "I'M READY";
+        }
+
+        setStatus(error.message || "Could not confirm readiness.");
+    }
+}
+
+
+// =====================================
+// HOST STARTS THE MATCH
+// =====================================
+
+async function startMatch() {
+    try {
+        if (!currentRoom || currentRole !== "host") {
+            throw new Error("Only the host can start the match.");
+        }
+
+        const button = getElement("multiplayerStartMatchButton");
+
+        if (button) {
+            button.disabled = true;
+            button.textContent = "STARTING...";
+        }
+
+        setStatus("Starting multiplayer match...");
+
+        const { error } = await supabase.rpc(
+            "start_multiplayer_match",
+            {
+                p_room_id: currentRoom.id
+            }
+        );
+
+        if (error) throw error;
+
+        const updatedRoom = await fetchRoom(currentRoom.id);
+
+        renderRoom(updatedRoom);
+
+    
+
+    } catch (error) {
+        console.error("AFC START MATCH ERROR:", error);
+
+        const button = getElement("multiplayerStartMatchButton");
+
+        if (button) {
+            button.disabled = false;
+            button.textContent = "START MATCH";
+        }
+
+        setStatus(error.message || "Could not start the match.");
+    }
+}
+
     // =====================================
     // LEAVE ROOM
     // =====================================
+
 
     async function leaveRoom() {
         if (roomSubscription) {
@@ -619,6 +805,7 @@ const Multiplayer = (() => {
         }
 
         currentRoom = null;
+        onlineMatchOpened = false;
         currentRole = null;
         currentUserId = null;
 
@@ -651,13 +838,15 @@ const Multiplayer = (() => {
     }
 
     return {
-        createRoom,
-        joinRoom,
-        leaveRoom,
-        confirmClubSelection,
-        startCoinToss,
-        chooseTossDecision
-    };
+    createRoom,
+    joinRoom,
+    leaveRoom,
+    confirmClubSelection,
+    startCoinToss,
+    chooseTossDecision,
+    confirmReady,
+    startMatch
+};
 })();
 
 window.Multiplayer = Multiplayer;
@@ -689,4 +878,9 @@ document.addEventListener("DOMContentLoaded", () => {
         ?.addEventListener("click", () =>
             Multiplayer.chooseTossDecision("keep_first")
         );
+        document.getElementById("multiplayerReadyButton")
+    ?.addEventListener("click", () => Multiplayer.confirmReady());
+
+document.getElementById("multiplayerStartMatchButton")
+    ?.addEventListener("click", () => Multiplayer.startMatch());
 });
