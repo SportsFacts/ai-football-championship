@@ -126,12 +126,35 @@
         <p id="multiplayerTossDecisionStatus"></p>
     </div>
 
-    <div id="multiplayerReadyPanel" class="hidden">
-        <p class="eyebrow">MATCH SETUP</p>
-        <h3>Penalty Shootout</h3>
-        <p id="multiplayerShootingOrder"></p>
-        <p id="multiplayerReadyStatus"></p>
+    
+<div id="multiplayerReadyPanel" class="hidden">
+    <p class="eyebrow">MATCH SETUP</p>
+    <h3>Penalty Shootout</h3>
+
+    <p id="multiplayerShootingOrder"></p>
+
+    <div class="ready-player-status">
+        <p id="hostReadyStatus">HOST: NOT READY</p>
+        <p id="guestReadyStatus">GUEST: NOT READY</p>
     </div>
+
+    <p id="multiplayerReadyStatus">
+        Both players must confirm readiness.
+    </p>
+
+    <button
+        id="multiplayerReadyButton"
+        class="button button-primary button-block">
+        I'M READY
+    </button>
+
+    <button
+        id="multiplayerStartMatchButton"
+        class="button button-primary button-block hidden">
+        START MATCH
+    </button>
+</div>
+
 
 </div>
 
